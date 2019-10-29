@@ -47,6 +47,10 @@ public class ProducerConsumerVersion1 {
 
     public static void main(String[] args) {
 
+        /**
+         * 在多线程的模式下，需要采用notifyAll()方法。避免出现线程假死现象、
+         */
+
         Stream.of("P1", "P2").forEach((name) -> {
             new Thread(() -> {
                 while (true) {
