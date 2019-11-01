@@ -23,6 +23,5 @@ public class NoneBlockQueue {
         System.out.println(clq.size());
         System.out.println(clq.poll());
         System.out.println(clq.poll());
-
     }
 }
