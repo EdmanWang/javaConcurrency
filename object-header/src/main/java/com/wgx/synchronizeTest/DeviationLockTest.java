@@ -5,9 +5,26 @@ import org.openjdk.jol.info.ClassLayout;
 
 public class DeviationLockTest {
 
-    public static void main(String[] args) {
+    static People people = new People();
 
-        People people = new People();
+
+    public static void main(String[] args) {
+        System.out.println(ClassLayout.parseInstance(people).toPrintable());
+
+
+        synchronized (people) {
+            System.out.println("-----进入  synchronized  第一次----");
+            System.out.println(ClassLayout.parseInstance(people).toPrintable());
+            synchronized (people) {
+                System.out.println("-----进入  synchronized  第二次----");
+                System.out.println(ClassLayout.parseInstance(people).toPrintable());
+                synchronized (people) {
+                    System.out.println("-----进入  synchronized  第三次----");
+                    System.out.println(ClassLayout.parseInstance(people).toPrintable());
+                }
+            }
+        }
+
 
         System.out.println(ClassLayout.parseInstance(people).toPrintable());
     }
