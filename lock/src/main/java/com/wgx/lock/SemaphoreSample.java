@@ -23,13 +23,16 @@ public class SemaphoreSample {
 
         public void run() {
             try {
+                /**
+                 * 使用semaphore做流量限流
+                 */
                 semaphore.acquire();
-                System.out.println(Thread.currentThread().getName() + ":aquire() at time:" + System.currentTimeMillis());
+                System.out.println(Thread.currentThread().getName() + ":acquire() at time:" + System.currentTimeMillis());
 
                 Thread.sleep(1000);
 
                 semaphore.release();
-                System.out.println(Thread.currentThread().getName() + ":aquire() at time:" + System.currentTimeMillis());
+                System.out.println(Thread.currentThread().getName() + ":release() at time:" + System.currentTimeMillis());
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
