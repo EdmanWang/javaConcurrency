@@ -259,9 +259,12 @@ public abstract class AbstractQueuedSynchronizer
 
     /**
      * 节点加入CLH同步队列
+     * 1：初始化CLH同步队列
+     * 2：重新设置尾节点
      */
     private Node enq(final Node node) {
         for (; ; ) {
+            // 尾节点
             Node t = tail;
             if (t == null) { // Must initialize
                 //队列为空需要初始化，创建空的头节点
@@ -290,8 +293,9 @@ public abstract class AbstractQueuedSynchronizer
         // 1. 将当前线程构建成Node类型
         Node node = new Node(Thread.currentThread(), mode);
         // Try the fast path of enq; backup to full enq on failure
+        // 前驱节点
         Node pred = tail;
-        // 2. 1当前尾节点是否为null？
+        // 2. 1当前尾节点是否为null？，如果是不等于null的话，就是需要构建头节点
         if (pred != null) {
             // 2.2 将当前节点尾插入的方式
             node.prev = pred;
@@ -451,6 +455,13 @@ public abstract class AbstractQueuedSynchronizer
     }
 
     /**
+     * Convenience method to interrupt current thread.
+     */
+    static void selfInterrupt() {
+        Thread.currentThread().interrupt();
+    }
+
+    /**
      * Checks and updates status for a node that failed to acquire.
      * Returns true if thread should block. This is the main signal
      * control in all acquire loops.  Requires that pred == node.prev.
@@ -460,6 +471,9 @@ public abstract class AbstractQueuedSynchronizer
      * @return {@code true} if thread should block
      */
     private static boolean shouldParkAfterFailedAcquire(Node pred, Node node) {
+        /**
+         * 默认的前驱节点的信号量是 -----> 0
+         */
         int ws = pred.waitStatus;
         if (ws == Node.SIGNAL)
             /*
@@ -479,25 +493,21 @@ public abstract class AbstractQueuedSynchronizer
              * 当前驱节点waitStatus为 0 or PROPAGATE状态时
              * 将其设置为SIGNAL状态，然后当前结点才可以可以被安全地park
              */
-            compareAndSetWaitStatus(pred, ws, Node.SIGNAL);
+            compareAndSetWaitStatus(pred, ws, Node.SIGNAL); // 将前驱节点的信号量改成----> -1
         }
         return false;
     }
 
     /**
-     * Convenience method to interrupt current thread.
-     */
-    static void selfInterrupt() {
-        Thread.currentThread().interrupt();
-    }
-
-    /**
      * 阻塞当前节点，返回当前Thread的中断状态
      * LockSupport.park 底层实现逻辑调用系统内核功能 pthread_mutex_lock 阻塞线程
+     * <p>
+     * 1: 重点
+     *    线程阻塞并不是代表线程打断
      */
     private final boolean parkAndCheckInterrupt() {
         LockSupport.park(this);//阻塞
-        return Thread.interrupted();
+        return Thread.interrupted(); // 返回的是false
     }
 
     /*
@@ -517,16 +527,22 @@ public abstract class AbstractQueuedSynchronizer
         try {
             boolean interrupted = false;
             for (; ; ) {//死循环
-                final Node p = node.predecessor();//找到当前结点的前驱结点
-                if (p == head && tryAcquire(arg)) {//如果前驱结点是头结点，才tryAcquire，其他结点是没有机会tryAcquire的。
-                    setHead(node);//获取同步状态成功，将当前结点设置为头结点。
-                    p.next = null; // help GC
+                //找到当前结点的前驱结点
+                final Node p = node.predecessor();
+                //如果前驱结点是头结点，才tryAcquire，其他结点是没有机会tryAcquire的。
+                if (p == head && tryAcquire(arg)) {
+                    //获取同步状态成功，将当前结点设置为头结点。
+                    setHead(node);
+                    // help GC 减少内存消耗
+                    p.next = null;
                     failed = false;
                     return interrupted;
                 }
                 /**
                  * 如果前驱节点不是Head，通过shouldParkAfterFailedAcquire判断是否应该阻塞
                  * 前驱节点信号量为-1，当前线程可以安全被parkAndCheckInterrupt用来阻塞线程
+                 *
+                 * 1: shouldParkAfterFailedAcquire(p, node) 改变前驱节点的信号量 从 0 ---> -1
                  */
                 if (shouldParkAfterFailedAcquire(p, node) &&
                         parkAndCheckInterrupt())
@@ -835,8 +851,18 @@ public abstract class AbstractQueuedSynchronizer
      *            {@link #tryAcquire} but is otherwise uninterpreted and
      *            can represent anything you like.
      */
+
+    /**
+     * aqs 获取锁资源
+     * 1：tryAcquire（arg） 是第一次尝试直接去获取
+     * 2： acquireQueued(addWaiter(Node.EXCLUSIVE), arg)
+     * 如果尝试加锁失败的话则是将当前线程放在CLH队列中
+     *
+     * @param arg
+     */
     public final void acquire(int arg) {
         if (!tryAcquire(arg) &&
+                // 将返回回来的节点，放在同步等待队列中
                 acquireQueued(addWaiter(Node.EXCLUSIVE), arg))
             selfInterrupt();
     }

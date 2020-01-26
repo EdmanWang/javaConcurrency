@@ -128,7 +128,7 @@ public class ReentrantLock implements Lock, java.io.Serializable {
                  * unsafe操作，cas修改state状态，cas
                  */
                 if (compareAndSetState(0, acquires)) {
-                    //独占状态锁持有者指向当前线程
+                    //独占状态锁持有者指向当前线程，这个是AbstractOwnableSynchronizer 中的一个方法
                     setExclusiveOwnerThread(current);
                     return true;
                 }
@@ -139,8 +139,10 @@ public class ReentrantLock implements Lock, java.io.Serializable {
              */
             else if (current == getExclusiveOwnerThread()) {
                 int nextc = c + acquires;
-                if (nextc < 0) // overflow
+                if (nextc < 0) {// overflow
                     throw new Error("Maximum lock count exceeded");
+                }
+                // 重新设置 state 的值
                 setState(nextc);
                 return true;
             }
@@ -150,16 +152,20 @@ public class ReentrantLock implements Lock, java.io.Serializable {
 
         /**
          * 释放锁
+         * 1：只能是拥有者才能去释放锁
          */
         protected final boolean tryRelease(int releases) {
             int c = getState() - releases;
+            // 如果当前线程不是该锁资源拥有者
             if (Thread.currentThread() != getExclusiveOwnerThread())
                 throw new IllegalMonitorStateException();
             boolean free = false;
             if (c == 0) {
+                // 表示不需要释放
                 free = true;
                 setExclusiveOwnerThread(null);
             }
+            // 释放锁资源
             setState(c);
             return free;
         }
@@ -190,6 +196,11 @@ public class ReentrantLock implements Lock, java.io.Serializable {
             return isHeldExclusively() ? getState() : 0;
         }
 
+        /**
+         * 判断是否已经锁住
+         *
+         * @return
+         */
         final boolean isLocked() {
             return getState() != 0;
         }
@@ -212,6 +223,7 @@ public class ReentrantLock implements Lock, java.io.Serializable {
 
         /**
          * 加锁行为
+         * 加锁的行为就是说需要去争夺共享资源
          */
         final void lock() {
             /**
