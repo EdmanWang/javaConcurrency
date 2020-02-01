@@ -115,6 +115,7 @@ public abstract class AbstractQueuedSynchronizer
         static final Node SHARED = new Node();
         /**
          * 标记节点为独占模式
+         * 条件队里中的锁是独占锁
          */
         static final Node EXCLUSIVE = null;
 
@@ -128,8 +129,9 @@ public abstract class AbstractQueuedSynchronizer
          */
         static final int SIGNAL = -1;
         /**
-         * 节点在等待队列中，节点的线程等待在Condition上，当其他线程对Condition调用了signal()方法后，
-         * 该节点会从等待队列中转移到同步队列中，加入到同步状态的获取中
+         * 节点在等待队列中，节点的线程等待在Condition上，
+         * 当其他线程对Condition调用了signal()方法后，
+         * 该节点会从等待队列中转移到同步队列中
          */
         static final int CONDITION = -2;
         /**
@@ -146,21 +148,24 @@ public abstract class AbstractQueuedSynchronizer
 
         /**
          * 前驱节点，当前节点加入到同步队列中被设置
+         * 只有同步队列中又前驱节点，条件队列中不存在前驱节点
          */
         volatile Node prev;
 
         /**
          * 后继节点
+         * 只有同步队列中又后继节点，条件队列中不存在后继节点
          */
         volatile Node next;
 
         /**
          * 节点同步状态的线程
+         * 表示该节点表示的是哪一个线程
          */
         volatile Thread thread;
 
         /**
-         * 等待队列中的后继节点，如果当前节点是共享的，那么这个字段是一个SHARED常量，
+         * 条件队列中的后继节点，如果当前节点是共享的，那么这个字段是一个SHARED常量，
          * 也就是说节点类型(独占和共享)和等待队列中的后继节点共用同一个字段。
          */
         Node nextWaiter;
@@ -242,6 +247,8 @@ public abstract class AbstractQueuedSynchronizer
      * @param update the new value
      * @return {@code true} if successful. False return indicates that the actual
      * value was not equal to the expected value.
+     * <p>
+     * 基于unsafe 的cas操作
      */
     protected final boolean compareAndSetState(int expect, int update) {
         // See below for intrinsics setup to support this
@@ -290,7 +297,7 @@ public abstract class AbstractQueuedSynchronizer
      * @return the new node
      */
     private Node addWaiter(Node mode) {
-        // 1. 将当前线程构建成Node类型
+        // 1. 将当前线程构建成Node类型，等待队列
         Node node = new Node(Thread.currentThread(), mode);
         // Try the fast path of enq; backup to full enq on failure
         // 前驱节点
@@ -305,6 +312,7 @@ public abstract class AbstractQueuedSynchronizer
                 return node;
             }
         }
+        // 初始化等待队列
         enq(node);
         return node;
     }
@@ -323,7 +331,7 @@ public abstract class AbstractQueuedSynchronizer
     }
 
     /**
-     *
+     * 唤醒后继节点
      */
     private void unparkSuccessor(Node node) {
         //获取wait状态
@@ -332,7 +340,8 @@ public abstract class AbstractQueuedSynchronizer
             compareAndSetWaitStatus(node, ws, 0);// 将等待状态waitStatus设置为初始值0
 
         /**
-         * 若后继结点为空，或状态为CANCEL（已失效），则从后尾部往前遍历找到最前的一个处于正常阻塞状态的结点
+         * 若后继结点为空，或状态为CANCEL（已失效），
+         * 则从后尾部往前遍历找到最前的一个处于正常阻塞状态的结点
          * 进行唤醒
          */
         Node s = node.next;
@@ -503,7 +512,7 @@ public abstract class AbstractQueuedSynchronizer
      * LockSupport.park 底层实现逻辑调用系统内核功能 pthread_mutex_lock 阻塞线程
      * <p>
      * 1: 重点
-     *    线程阻塞并不是代表线程打断
+     * 线程阻塞并不是代表线程打断
      */
     private final boolean parkAndCheckInterrupt() {
         LockSupport.park(this);//阻塞
@@ -775,6 +784,13 @@ public abstract class AbstractQueuedSynchronizer
      *                                       thrown in a consistent fashion for synchronization to work
      *                                       correctly.
      * @throws UnsupportedOperationException if exclusive mode is not supported
+     */
+
+    /**
+     * 由子类去实现具体的释放锁资源
+     *
+     * @param arg
+     * @return
      */
     protected boolean tryRelease(int arg) {
         throw new UnsupportedOperationException();
@@ -1282,8 +1298,13 @@ public abstract class AbstractQueuedSynchronizer
     final int fullyRelease(Node node) {
         boolean failed = true;
         try {
-            //这里这个取值要注意，获取当前的state并释放，这从另一个角度说明必须是独占锁
-            //可以考虑下这个逻辑放在共享锁下面会发生什么？
+            /**
+             *  这里这个取值要注意，获取当前的state并释放，
+             *  这从另一个角度说明必须是独占锁
+             *  可以考虑下这个逻辑放在共享锁下面会发生什么？
+             *      如果是共享锁的话，可能会发生的问题
+             *          1：有些线程可能还没完成，就被释放锁permit,无法做到限流。
+             */
             int savedState = getState();
             if (release(savedState)) {
                 failed = false;
@@ -1544,13 +1565,26 @@ public abstract class AbstractQueuedSynchronizer
             //如果当前线程被中断则直接抛出异常
             if (Thread.interrupted())
                 throw new InterruptedException();
-            //把当前节点加入条件队列
+            /**
+             * 1:把当前节点加入条件队列
+             * 2:返回的是当前节点
+             */
             Node node = addConditionWaiter();
-            //释放掉已经获取的独占锁资源
+            /**
+             * 释放掉已经获取的独占锁资源
+             * 1:由于是可重入锁，所以需要将state全部释放
+             */
             int savedState = fullyRelease(node);
             int interruptMode = 0;
-            //如果不在同步队列中则不断挂起
+            /**
+             * 判断是否在同步队列中
+             * 如果不在同步队列中则不断挂起
+             * 1：第一次进去该线程肯定不在同步队列中
+             */
             while (!isOnSyncQueue(node)) {
+                /**
+                 * 线程会在这阻塞
+                 */
                 LockSupport.park(this);
                 //这里被唤醒可能是正常的signal操作也可能是中断
                 if ((interruptMode = checkInterruptWhileWaiting(node)) != 0)
