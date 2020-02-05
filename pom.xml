@@ -7,6 +7,9 @@
         <module>jmm</module>
         <module>object-header</module>
         <module>lock</module>
+        <module>hashMap</module>
+        <module>volatile</module>
+        <module>synchronized</module>
     </modules>
     <parent>
         <groupId>org.springframework.boot</groupId>

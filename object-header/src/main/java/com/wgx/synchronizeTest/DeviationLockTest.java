@@ -5,7 +5,7 @@ import org.openjdk.jol.info.ClassLayout;
 
 public class DeviationLockTest {
 
-    static People people = new People();
+    static volatile People  people = new People();
 
 
     public static void main(String[] args) {

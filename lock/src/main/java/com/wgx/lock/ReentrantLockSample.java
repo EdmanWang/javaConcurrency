@@ -7,6 +7,9 @@ import java.util.concurrent.locks.ReentrantLock;
  */
 public class ReentrantLockSample {
 
+    /**
+     * 公平锁
+     */
     private static ReentrantLock reentrantLock = new ReentrantLock(true);
 
     /**

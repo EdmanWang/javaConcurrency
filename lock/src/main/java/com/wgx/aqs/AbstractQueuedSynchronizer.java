@@ -12,10 +12,14 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.LockSupport;
 
 /**
- * @author ：图灵-杨过
+ * @author ：edmanwang
  * @date：2019/7/3
  * @version: V1.0
- * @slogan:天下风云出我辈，一入代码岁月催 description：AQS同步器框架源码
+ * @slogan:天下风云出我辈，一入代码岁月催
+ * @description：AQS同步器框架源码 1：什么是AQS
+ * 1：aqs在代码层面上来说是一个类。
+ * 2：从框架层面上理解，aqs是道格.李对java并发其中包括独占，共享，条件队列，同步队列实现
+ * 的一种规范。
  */
 public abstract class AbstractQueuedSynchronizer
         extends AbstractOwnableSynchronizer
@@ -108,6 +112,10 @@ public abstract class AbstractQueuedSynchronizer
      * expert group, for helpful ideas, discussions, and critiques
      * on the design of this class.
      */
+
+    /**
+     * 不管是同步队列还是条件队列都是基于该类【node】来构建其数据结构的
+     */
     static final class Node {
         /**
          * 标记节点未共享模式
@@ -178,6 +186,7 @@ public abstract class AbstractQueuedSynchronizer
         }
 
         /**
+         * 在同步队列中
          * 返回前驱节点
          */
         final Node predecessor() throws NullPointerException {
@@ -191,11 +200,23 @@ public abstract class AbstractQueuedSynchronizer
         Node() {    // Used to establish initial head or SHARED marker
         }
 
+        /**
+         * 在同步队列中使用，用于构建同步队列
+         *
+         * @param thread
+         * @param mode
+         */
         Node(Thread thread, Node mode) {     // Used by addWaiter
             this.nextWaiter = mode;
             this.thread = thread;
         }
 
+        /**
+         * 在条件队列中使用，用于构建条件队列
+         *
+         * @param thread
+         * @param waitStatus
+         */
         Node(Thread thread, int waitStatus) { // Used by Condition
             this.waitStatus = waitStatus;
             this.thread = thread;
@@ -337,7 +358,8 @@ public abstract class AbstractQueuedSynchronizer
         //获取wait状态
         int ws = node.waitStatus;
         if (ws < 0)
-            compareAndSetWaitStatus(node, ws, 0);// 将等待状态waitStatus设置为初始值0
+            // 将等待状态waitStatus设置为初始值0
+            compareAndSetWaitStatus(node, ws, 0);
 
         /**
          * 若后继结点为空，或状态为CANCEL（已失效），
